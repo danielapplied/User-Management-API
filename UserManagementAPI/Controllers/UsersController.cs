@@ -1,93 +1,64 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using UserManagementAPI.Models;
 
-namespace UserManagementAPI.Controllers
+[ApiController]
+[Route("api/users")]
+[Authorize] // 🔒 All endpoints require JWT
+public class UsersController : ControllerBase
 {
-    [ApiController]
-    [Route("api/[controller]")]
-    public class UsersController : ControllerBase
+    private readonly AppDbContext _context;
+
+    public UsersController(AppDbContext context)
     {
-        private static readonly List<User> users = new();
+        _context = context;
+    }
 
-        // GET: api/users
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<User>>> GetUsers()
-        {
-            return await Task.FromResult(Ok(users));
-        }
+    [HttpGet]
+    public async Task<IActionResult> GetUsers()
+    {
+        return Ok(await _context.Users.ToListAsync());
+    }
 
-        // GET: api/users/{id}
-        [HttpGet("{id}")]
-        public async Task<ActionResult<User>> GetUser(int id)
-        {
-            var user = users.FirstOrDefault(u => u.Id == id);
-            if (user == null)
-              throw new KeyNotFoundException("User not found");
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetUser(int id)
+    {
+        var user = await _context.Users.FindAsync(id);
 
-            return await Task.FromResult(Ok(user));
-        }
+        if (user == null)
+            return NotFound();
 
-        // POST: api/users
-        [HttpPost]
-        public async Task<ActionResult<User>> CreateUser(User user)
-        {
-            user.Id = users.Count + 1;
-            users.Add(user);
+        return Ok(user);
+    }
 
-            return await Task.FromResult(
-                CreatedAtAction(nameof(GetUser), new { id = user.Id }, user)
-            );
-        }
+    [HttpPost]
+    [Authorize(Roles = "Admin")] // 🔥 RBAC
+    public async Task<IActionResult> CreateUser(User user)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
 
-        // PUT: api/users/{id}
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateUser(int id, User updatedUser)
-        {
-            var user = users.FirstOrDefault(u => u.Id == id);
-            if (user == null)
-              throw new KeyNotFoundException("User not found");
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(user.PasswordHash);
 
-            user.FullName = updatedUser.FullName;
-            user.Email = updatedUser.Email;
-            user.Department = updatedUser.Department;
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
 
-            return await Task.FromResult(NoContent());
-        }
+        return CreatedAtAction(nameof(GetUser), new { id = user.Id }, user);
+    }
 
-        // PUT: api/users/{id}
-        [HttpPatch("{id}")]
-        public async Task<IActionResult> PatchUser(int id, User updatedUser)
-        {
-            var user = users.FirstOrDefault(u => u.Id == id);
+    [HttpDelete("{id}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> DeleteUser(int id)
+    {
+        var user = await _context.Users.FindAsync(id);
 
-            if (user == null)
-              throw new KeyNotFoundException("User not found");
+        if (user == null)
+            return NotFound();
 
-            if (!string.IsNullOrEmpty(updatedUser.FullName))
-               user.FullName = updatedUser.FullName;
+        _context.Users.Remove(user);
+        await _context.SaveChangesAsync();
 
-            if (!string.IsNullOrEmpty(updatedUser.Email))
-                user.Email = updatedUser.Email;
-
-            if (!string.IsNullOrEmpty(updatedUser.Department))
-               user.Department = updatedUser.Department;
-
-            return await Task.FromResult(NoContent());
-        }
-
-        // DELETE: api/users/{id}
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteUser(int id)
-        {
-            var user = users.FirstOrDefault(u => u.Id == id);
-           if (user == null)
-              throw new KeyNotFoundException("User not found");
-
-            users.Remove(user);
-            return await Task.FromResult(NoContent());
-        }
+        return NoContent();
     }
 }

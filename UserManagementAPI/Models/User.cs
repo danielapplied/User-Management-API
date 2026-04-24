@@ -6,16 +6,19 @@ namespace UserManagementAPI.Models
     {
         public int Id { get; set; }
 
-        [Required(ErrorMessage = "Full name is required")]
-        [StringLength(100, MinimumLength = 3)]
+        [Required, StringLength(100, MinimumLength = 3)]
         public string FullName { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Email is required")]
-        [EmailAddress(ErrorMessage = "Invalid email format")]
+        [Required, EmailAddress]
         public string Email { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Department is required")]
-        [StringLength(50)]
+        [Required]
+        public string PasswordHash { get; set; } = string.Empty;
+
+        [Required]
+        public string Role { get; set; } = "User";
+
+        [Required, StringLength(50)]
         public string Department { get; set; } = string.Empty;
     }
 }
